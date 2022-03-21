@@ -7,8 +7,6 @@ import {
 
 const SPOTIFY_AUTH_URL = 'https://accounts.spotify.com/authorize'
 const SPOTIFY_TOKEN_URL = 'https://accounts.spotify.com/api/token'
-// eslint-disable-next-line no-var
-var ACCESS_TOKEN = ''
 
 const router = Router()
 
@@ -64,21 +62,16 @@ router.get('/auth/callback', async (req) => {
   const data = await fetch(SPOTIFY_TOKEN_URL, authOptions)
   const json: any = await data.json()
   if (data.status === 200) {
-    ACCESS_TOKEN = json.access_token
     return new Response(
       getCallbackTemplate(
         `spotify-shortcuts://?${new URLSearchParams({
-          access_token: ACCESS_TOKEN,
+          access_token: json.access_token,
           refresh_token: json.refresh_token,
         }).toString()}`,
       ),
       { headers: { 'Content-Type': 'text/html' } },
     )
   }
-})
-
-router.get('/auth/token', () => {
-  return new Response(JSON.stringify(ACCESS_TOKEN))
 })
 
 router.get('/auth/refresh', async (req) => {
@@ -104,19 +97,14 @@ router.get('/auth/refresh', async (req) => {
   const data = await fetch(SPOTIFY_TOKEN_URL, authOptions)
   const json: any = await data.json()
   if (data.status === 200) {
-    ACCESS_TOKEN = json.access_token
     const headers = new Headers()
     headers.set('Access-Control-Allow-Origin', '*')
-    return new Response(JSON.stringify({ access_token: ACCESS_TOKEN }), {
+    return new Response(JSON.stringify({ access_token: json.access_token }), {
       headers,
     })
   } else {
     return new Response('Failed to refresh token', { status: 500 })
   }
-})
-
-router.get('/test', () => {
-  return new Response(JSON.stringify(SPOTIFY_REDIRECT_URI))
 })
 
 router.all('*', () => new Response('404, not found!', { status: 404 }))
