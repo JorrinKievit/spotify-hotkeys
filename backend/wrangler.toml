@@ -1,0 +1,22 @@
+name = "spotify-hotkeys"
+type = "javascript"
+zone_id = ""
+account_id = "ad93ce06e0a3c5f3e3f99743b7ce13b3"
+route = ""
+workers_dev = true
+compatibility_date = "2022-03-07"
+
+[vars]
+SPOTIFY_REDIRECT_URI="http://localhost:8787/auth/callback"
+
+[env.production.vars]
+SPOTIFY_REDIRECT_URI="https://spotify-hotkeys-production.jorrinkievit.workers.dev/auth/callback"
+
+[build]
+command = "npm install && npm run build"
+[build.upload]
+format = "service-worker"
+
+# [secrets]
+# SPOTIFY_CLIENT_ID
+# SPOTIFY_SECRET_ID
