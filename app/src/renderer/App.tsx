@@ -11,7 +11,6 @@ import './utils/interceptor';
 import Snackbar from './components/Snackbar';
 
 export const App: FC = () => {
-  console.log(window.electron.env.SPOTIFY_AUTH_URL);
   return (
     <ThemeProvider theme={theme}>
       <CssBaseline />

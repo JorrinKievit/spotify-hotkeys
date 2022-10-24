@@ -20,14 +20,12 @@ export const fetchRefreshToken = async () => {
   }
 };
 
-const useSpotifyApi = () => {
+const getSpotifyApi = () => {
   if (spotifyApi === undefined) {
     spotifyApi = new SpotifyWebApi();
-    spotifyApi.setAccessToken(
-      window.electron.ipcRenderer.store.get('access_token')
-    );
+    spotifyApi.setAccessToken(store.get('access_token'));
   }
   return spotifyApi;
 };
 
-export default useSpotifyApi;
+export default getSpotifyApi;

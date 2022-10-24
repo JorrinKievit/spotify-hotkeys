@@ -9,25 +9,17 @@
  * `./src/main.js` using webpack. This gives us some performance wins.
  */
 import path from 'path';
-import { app, BrowserWindow, shell, ipcMain, globalShortcut } from 'electron';
+import { app, BrowserWindow, shell, globalShortcut, Tray } from 'electron';
 import { autoUpdater } from 'electron-updater';
 import log from 'electron-log';
-import Store from 'electron-store';
-import MenuBuilder from './menu';
 import { resolveHtmlPath } from './util';
-import { StoreSchema } from './storeSchema';
+import TrayBuilder from './tray';
+import { store } from './store';
+
+import './ipc';
 
 let deepLinkURL: string[] | string | undefined;
-
-// store
-const store = new Store<StoreSchema>({
-  defaults: {
-    access_token: '',
-    refresh_token: '',
-    add_song_to_playlist_hotkey: { key: '', playlist_id: '' },
-    acquired_token_date: undefined,
-  },
-});
+let tray: Tray | null = null;
 
 export default class AppUpdater {
   constructor() {
@@ -39,30 +31,12 @@ export default class AppUpdater {
 
 let mainWindow: BrowserWindow | null = null;
 
-ipcMain.on('add-global-shortcut', async (event, old_key) => {
-  if (old_key) {
-    globalShortcut.unregister(old_key);
-  }
-  const hotkey = store.get('add_song_to_playlist_hotkey');
-  globalShortcut.register(hotkey.key, () => {
-    event.reply('add-song-to-playlist-hotkey-pressed');
-  });
-});
-
-ipcMain.on('open-external-link', (event, href) => {
-  shell.openExternal(href);
-});
-
-// IPC listener
-ipcMain.on('electron-store-get', async (event, val) => {
-  event.returnValue = store.get(val);
-});
-ipcMain.on('electron-store-set', async (event, key, val) => {
-  store.set(key, val);
-});
-
-if (!app.isDefaultProtocolClient('spotify-shortcuts')) {
-  app.setAsDefaultProtocolClient('spotify-shortcuts');
+if (process.defaultApp) {
+  app.setAsDefaultProtocolClient('spotify-hotkeys', process.execPath, [
+    path.resolve(process.argv[1]),
+  ]);
+} else {
+  app.setAsDefaultProtocolClient('spotify-hotkeys');
 }
 
 if (process.env.NODE_ENV === 'production') {
@@ -113,6 +87,8 @@ const createWindow = async () => {
     },
   });
 
+  mainWindow.setMenuBarVisibility(false);
+
   mainWindow.loadURL(resolveHtmlPath('index.html'));
 
   if (process.platform === 'win32') {
@@ -134,8 +110,20 @@ const createWindow = async () => {
     mainWindow = null;
   });
 
-  const menuBuilder = new MenuBuilder(mainWindow);
-  menuBuilder.buildMenu();
+  mainWindow.on('minimize', (event: { preventDefault: () => void }) => {
+    event.preventDefault();
+    mainWindow!.setSkipTaskbar(true);
+
+    const trayBuilder = new TrayBuilder(mainWindow!);
+    tray = trayBuilder.buildTray();
+  });
+
+  mainWindow.on('restore', () => {
+    mainWindow?.show();
+    mainWindow?.setSkipTaskbar(false);
+    mainWindow?.focus();
+    tray?.destroy();
+  });
 
   // Open urls in the user's browser
   mainWindow.webContents.setWindowOpenHandler((edata) => {
@@ -147,10 +135,6 @@ const createWindow = async () => {
   // eslint-disable-next-line
   new AppUpdater();
 };
-
-/**
- * Add event listeners...
- */
 
 app.on('window-all-closed', () => {
   // Respect the OSX convention of having the application in memory even
@@ -169,7 +153,7 @@ app.on('will-finish-launching', () => {
     event.preventDefault();
     deepLinkURL = url;
 
-    mainWindow?.webContents.send('open-url', deepLinkURL);
+    mainWindow?.webContents.send('open_url', deepLinkURL);
   });
 });
 
@@ -180,9 +164,14 @@ const createApp = () => {
     .then(() => {
       createWindow();
 
-      const hotkey = store.get('add_song_to_playlist_hotkey');
+      const hotkey = store.get('hotkeys').add_song_to_playlist_hotkey;
       globalShortcut.register(hotkey.key, () => {
-        mainWindow?.webContents.send('add-song-to-playlist-hotkey-pressed');
+        mainWindow?.webContents.send('add_song_to_playlist_hotkey__pressed');
+      });
+
+      const likedHotkey = store.get('hotkeys').add_song_to_liked_songs_hotkey;
+      globalShortcut.register(likedHotkey.key, () => {
+        mainWindow?.webContents.send('add_song_to_liked_songs_hotkey__pressed');
       });
 
       app.on('activate', () => {
@@ -203,7 +192,7 @@ if (process.platform === 'win32') {
     app.on('second-instance', (event, argv) => {
       deepLinkURL = argv.slice(1);
 
-      mainWindow?.webContents.send('open-url', deepLinkURL[1]);
+      mainWindow?.webContents.send('open_url', deepLinkURL[1]);
       // Someone tried to run a second instance, we should focus our window.
       if (mainWindow) {
         if (mainWindow.isMinimized()) mainWindow.restore();

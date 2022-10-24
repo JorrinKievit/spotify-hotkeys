@@ -64,7 +64,7 @@ router.get('/auth/callback', async (req) => {
   if (data.status === 200) {
     return new Response(
       getCallbackTemplate(
-        `spotify-shortcuts://?${new URLSearchParams({
+        `spotify-hotkeys://?${new URLSearchParams({
           access_token: json.access_token,
           refresh_token: json.refresh_token,
         }).toString()}`,
